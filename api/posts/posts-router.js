@@ -1,8 +1,5 @@
-// implement your posts router here
 const { Router } = require('express');
-
 const Post = require('./posts-model');
-
 const postRouter = Router();
 
 postRouter.get('/',(req, res) => {
@@ -36,10 +33,19 @@ postRouter.get('/:id', (req, res) => {
         })
 })
 
-postRouter.get('/', (req, res) => {
-    Post.add(req.body)
+postRouter.post('/', (req, res) => {
+    const { title, contents } = req.body
+    if(!title || !contents){
+        res.status(400).json({
+            message: "Please provide title and contents for the post"
+        })
+    } else {
+        Post.insert({ title, contents })
+        .then(({ id }) => {
+           return Post.findById(id)
+        })
         .then(post => {
-            res.status(201).json({post})
+            res.status(201).json(post)
         })
         .catch(error => {
             console.log(error);
@@ -47,42 +53,60 @@ postRouter.get('/', (req, res) => {
                 message: "There was an error while saving the post to the database",
             })
         })
+    }
 })
 postRouter.put('/:id', (req, res) => {
-    const changes = req.body;
-    Post.update(req.params.id, changes)
-        .then(post => {
-            if(post) {
-                res.status(200).json(post);
-            } else {
-                res.status(404).json({message: "The post with the specified ID does not exist"})
-            }
+    const { title, contents } = req.body
+    if(!title || !contents){
+        res.status(400).json({
+            message: "Please provide title and contents for the post"
         })
-        .catch(error => {
-            console.log(error);
-            res.status(500).json({
-                message: "The post information could not be modified",
-            })
-        })
-})
-
-postRouter.delete('/:id', (req, res) => {
-    Post.remove(req.params.id)
-        .then(post => {
-                if(post > 0) {
-                    res.status(200).json({ message: 'The adopter has been deleted' })
+    } else {
+        Post.findById(req.params.id)
+            .then(post => {
+                if(!post) {
+                    res.status(404).json({
+                        message: "The post with the specified ID does not exist"
+                    })
                 } else {
-                    res.status(404).json({ message: "The post with the specified ID does not exist" })
+                    return Post.update(req.params.id, req.body)
                 }
             })
-            .catch(error => {
-                console.log(error);
+            .then(data => {
+                if (data) {
+                    return Post.findById(req.params.id)
+                }
+            })
+            .then(post => {
+                res.json(post)
+            })
+            .catch(err => {
+                console.log(err)
                 res.status(500).json({
-                    message: "The post could not be removed"
+                    message: "The post information could not be modified"
                 })
             })
+    }
 })
 
+postRouter.delete('/:id', async (req, res) => {
+    try {
+    const post = await Post.findById(req.params.id)
+    if (!post) {
+        res.status(404).json({
+            message: "The post with the specified ID does not exist",
+        })
+    } else {
+        await Post.remove(req.params.id)
+        res.json(post)
+    }
+    } catch (err) {
+        res.status(500).json({
+            message: "The post could not be removed"
+    })
+    }
+})
+   
 postRouter.get('./:id/comments', (req, res) => {
     Post.findById(req.params.id)
         .then(comment => {
